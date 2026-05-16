@@ -17,5 +17,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    // Required for production (Vercel): PKCE code exchange after email
+    // confirmation must be explicitly enabled so the auth code in the
+    // redirect URL (?code=...) is properly exchanged for a session.
+    detectSessionInUrl: true,
+    flowType: 'pkce',
   }
 });

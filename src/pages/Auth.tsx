@@ -181,8 +181,11 @@ const RealAuth = () => {
             role: validated.role,
             market_name: role === "vendor" ? marketName : null,
           },
-          // Uses window.location.origin so it works on any domain (Replit, Vercel, custom)
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          // /auth/callback handles the PKCE code exchange before redirecting
+          // to /dashboard.  Using /dashboard directly caused a race condition
+          // in production where Dashboard redirected to /login before Supabase
+          // could exchange the ?code= token for a session.
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
