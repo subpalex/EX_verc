@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { z } from "zod";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { FadeIn } from "@/components/animations";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSelector from "@/components/LanguageSelector";
@@ -19,7 +19,6 @@ import { DEMO_MODE } from "@/lib/demoMode";
 
 // ─── Error helpers ────────────────────────────────────────────────────────────
 
-/** Detects fetch / DNS / offline failures across browsers. */
 function isNetworkError(err: unknown): boolean {
   const msg = String((err as { message?: string })?.message ?? err ?? "").toLowerCase();
   return (
@@ -33,18 +32,27 @@ function isNetworkError(err: unknown): boolean {
   );
 }
 
-/** Translates raw auth errors into user-friendly messages. */
 function friendlyAuthError(err: unknown, fallback: string): string {
   if (isNetworkError(err)) {
-    return "Authentication service temporarily unavailable. Please try again.";
+    return "Connection failed. Please check your internet and try again.";
   }
   const msg = String((err as { message?: string })?.message ?? "");
-  if (msg.includes("Invalid login credentials")) return "Invalid email or password.";
+  // Supabase returns "Invalid login credentials" for both wrong password AND
+  // unconfirmed email (to prevent email enumeration), so include the hint.
+  if (msg.includes("Invalid login credentials")) {
+    return "Invalid email or password. If you just signed up, please confirm your email first (check your inbox).";
+  }
   if (msg.toLowerCase().includes("email not confirmed")) {
-    return "Please confirm your email before logging in.";
+    return "Please confirm your email before logging in — check your inbox for the confirmation link.";
+  }
+  if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("user already")) {
+    return "An account with this email already exists. Please log in instead.";
   }
   if (msg.toLowerCase().includes("rate limit")) {
     return "Too many attempts. Please wait a moment and try again.";
+  }
+  if (msg.toLowerCase().includes("database error")) {
+    return "There was a problem creating your account. Please try again.";
   }
   return msg || fallback;
 }
@@ -62,9 +70,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-// ── DEMO MODE BYPASS ──────────────────────────────────────────────────────
-// When demo mode is on, replace the whole Auth page with a tiny redirect
-// component so no Supabase code below ever runs.
+// ── DEMO MODE BYPASS ──────────────────────────────────────────────────────────
 const AuthDemoRedirect = () => {
   const navigate = useNavigate();
   useEffect(() => {
@@ -73,13 +79,45 @@ const AuthDemoRedirect = () => {
   return null;
 };
 
+// ── Profile recovery: creates a missing profile row for an authenticated user ─
+async function ensureProfileExists(
+  userId: string,
+  fullName: string,
+  role: "vendor" | "officer",
+  marketName: string | null
+) {
+  try {
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!existing) {
+      await supabase.from("profiles").insert({
+        id: userId,
+        full_name: fullName || "User",
+        role: role as any,
+        market_name: marketName,
+      });
+      // Ensure user_roles entry too
+      await supabase.from("user_roles").upsert(
+        { user_id: userId, role: role as any },
+        { onConflict: "user_id,role" }
+      );
+    }
+  } catch (err) {
+    // Non-fatal — dashboard will handle missing profile gracefully
+    console.warn("ensureProfileExists failed:", err);
+  }
+}
+
 const RealAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  // Pick the initial tab from the URL: /register → signup, anything else → login
   const initialTab = location.pathname === "/register" ? "signup" : "login";
 
   // Sign up fields
@@ -88,7 +126,7 @@ const RealAuth = () => {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"vendor" | "officer">("vendor");
   const [marketName, setMarketName] = useState("");
-  
+
   // Login fields
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -113,9 +151,11 @@ const RealAuth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // ── Sign Up ────────────────────────────────────────────────────────────────
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const validated = signupSchema.parse({
         email: signupEmail,
@@ -141,21 +181,36 @@ const RealAuth = () => {
             role: validated.role,
             market_name: role === "vendor" ? marketName : null,
           },
+          // Uses window.location.origin so it works on any domain (Replit, Vercel, custom)
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) {
-        if (error.message.includes("already registered")) {
-          toast.error("This email is already registered. Please login instead.");
-        } else {
-          toast.error(friendlyAuthError(error, "Failed to create account"));
-        }
+        toast.error(friendlyAuthError(error, "Failed to create account"));
         return;
       }
 
       if (data.user) {
-        toast.success("Account created successfully!");
+        if (!data.session) {
+          // Email confirmation is required in this Supabase project.
+          // The auth user has been created; profile row will be created by
+          // the on_auth_user_created trigger. User must confirm email first.
+          toast.success(
+            "Account created! Check your email for a confirmation link, then come back to log in.",
+            { duration: 8000 }
+          );
+        } else {
+          // Email confirmation disabled — user is immediately logged in.
+          // Make sure the profile exists (safety net if trigger was delayed).
+          await ensureProfileExists(
+            data.user.id,
+            validated.fullName,
+            validated.role,
+            role === "vendor" ? marketName : null
+          );
+          toast.success("Account created and logged in!");
+        }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -168,9 +223,11 @@ const RealAuth = () => {
     }
   };
 
+  // ── Login ──────────────────────────────────────────────────────────────────
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const validated = loginSchema.parse({
         email: loginEmail,
@@ -179,7 +236,7 @@ const RealAuth = () => {
 
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: validated.email,
         password: validated.password,
       });
@@ -187,6 +244,18 @@ const RealAuth = () => {
       if (error) {
         toast.error(friendlyAuthError(error, "Failed to login"));
         return;
+      }
+
+      // Recovery path: if the signup trigger failed and this user has no profile
+      // row, create it now so the dashboard doesn't silently break.
+      if (data.user) {
+        const meta = data.user.user_metadata ?? {};
+        await ensureProfileExists(
+          data.user.id,
+          meta.full_name ?? "",
+          (meta.role as "vendor" | "officer") ?? "vendor",
+          meta.market_name ?? null
+        );
       }
 
       toast.success("Logged in successfully!");
@@ -200,6 +269,8 @@ const RealAuth = () => {
       setLoading(false);
     }
   };
+
+  // ── Loading skeleton ───────────────────────────────────────────────────────
 
   if (checkingSession) {
     return (
@@ -219,14 +290,15 @@ const RealAuth = () => {
     );
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden">
-      {/* Language Selector */}
       <div className="absolute top-4 right-4 z-20">
         <LanguageSelector />
       </div>
 
-      {/* Animated background */}
+      {/* Animated background blobs */}
       <motion.div
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
         initial={{ opacity: 0 }}
@@ -235,18 +307,12 @@ const RealAuth = () => {
       >
         <motion.div
           className="absolute top-20 -left-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, 30, 0],
-            y: [0, -20, 0],
-          }}
+          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           className="absolute bottom-20 -right-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, -30, 0],
-            y: [0, 20, 0],
-          }}
+          animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         />
       </motion.div>
@@ -271,10 +337,15 @@ const RealAuth = () => {
         <FadeIn delay={0.2}>
           <Tabs defaultValue={initialTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 glass border border-white/10 rounded-xl">
-              <TabsTrigger value="login" className="rounded-lg" data-testid="tab-login">{t.login}</TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-lg" data-testid="tab-signup">{t.signUp}</TabsTrigger>
+              <TabsTrigger value="login" className="rounded-lg" data-testid="tab-login">
+                {t.login}
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-lg" data-testid="tab-signup">
+                {t.signUp}
+              </TabsTrigger>
             </TabsList>
 
+            {/* ── Login ── */}
             <TabsContent value="login">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -288,7 +359,7 @@ const RealAuth = () => {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -301,10 +372,11 @@ const RealAuth = () => {
                           placeholder="your@email.com"
                           value={loginEmail}
                           onChange={(e) => setLoginEmail(e.target.value)}
+                          autoComplete="email"
                           required
                         />
                       </motion.div>
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -316,28 +388,30 @@ const RealAuth = () => {
                           type="password"
                           value={loginPassword}
                           onChange={(e) => setLoginPassword(e.target.value)}
+                          autoComplete="current-password"
                           required
                         />
                       </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                         <Button
                           type="submit"
-                          className="w-full btn-neon rounded-xl h-11 font-semibold border-0 hover:btn-neon"
+                          className="w-full btn-neon rounded-xl h-11 font-semibold border-0"
                           disabled={loading}
                           data-testid="button-submit-login"
                         >
                           {loading ? t.loggingIn : t.login}
                         </Button>
                       </motion.div>
+                      <p className="text-xs text-center text-muted-foreground pt-1">
+                        New user? Check your email for a confirmation link after signing up.
+                      </p>
                     </form>
                   </CardContent>
                 </Card>
               </motion.div>
             </TabsContent>
 
+            {/* ── Sign Up ── */}
             <TabsContent value="signup">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -351,7 +425,7 @@ const RealAuth = () => {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSignUp} className="space-y-4">
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -364,10 +438,11 @@ const RealAuth = () => {
                           placeholder="John Doe"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
+                          autoComplete="name"
                           required
                         />
                       </motion.div>
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -380,10 +455,11 @@ const RealAuth = () => {
                           placeholder="your@email.com"
                           value={signupEmail}
                           onChange={(e) => setSignupEmail(e.target.value)}
+                          autoComplete="email"
                           required
                         />
                       </motion.div>
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -396,17 +472,21 @@ const RealAuth = () => {
                           placeholder="At least 6 characters"
                           value={signupPassword}
                           onChange={(e) => setSignupPassword(e.target.value)}
+                          autoComplete="new-password"
                           required
                         />
                       </motion.div>
-                      <motion.div 
+                      <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.25 }}
                       >
                         <Label htmlFor="role">{t.iAmA}</Label>
-                        <Select value={role} onValueChange={(value: "vendor" | "officer") => setRole(value)}>
+                        <Select
+                          value={role}
+                          onValueChange={(value: "vendor" | "officer") => setRole(value)}
+                        >
                           <SelectTrigger id="role">
                             <SelectValue />
                           </SelectTrigger>
@@ -417,7 +497,7 @@ const RealAuth = () => {
                         </Select>
                       </motion.div>
                       {role === "vendor" && (
-                        <motion.div 
+                        <motion.div
                           className="space-y-2"
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
@@ -435,19 +515,19 @@ const RealAuth = () => {
                           />
                         </motion.div>
                       )}
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                         <Button
                           type="submit"
-                          className="w-full btn-neon rounded-xl h-11 font-semibold border-0 hover:btn-neon"
+                          className="w-full btn-neon rounded-xl h-11 font-semibold border-0"
                           disabled={loading}
                           data-testid="button-submit-signup"
                         >
                           {loading ? t.creatingAccount : t.createAccount}
                         </Button>
                       </motion.div>
+                      <p className="text-xs text-center text-muted-foreground pt-1">
+                        After signing up, check your email for a confirmation link before logging in.
+                      </p>
                     </form>
                   </CardContent>
                 </Card>
@@ -460,7 +540,6 @@ const RealAuth = () => {
   );
 };
 
-// Top-level export: pick demo redirect or the real auth flow based on flag.
 const Auth = () => (DEMO_MODE ? <AuthDemoRedirect /> : <RealAuth />);
 
 export default Auth;
