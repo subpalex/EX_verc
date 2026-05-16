@@ -1,0 +1,111 @@
+Refactor my UrbanEye AI web application to REMOVE the entire point-based system and simplify the municipal dashboard actions.
+
+IMPORTANT:
+- Do NOT rebuild the app
+- Do NOT change core features (upload, reports, AI, navigation)
+- Only remove points-related logic and UI
+
+----------------------------------------
+
+STEP 1: REMOVE POINT SYSTEM (GLOBAL)
+
+- Delete all references to points:
+  - variables: points, score, weeklyPoints, rank, leaderboard
+  - calculations or increments (+1pt, 0pt)
+  - APIs or DB fields related to points
+
+- Remove UI elements:
+  - "Points this week"
+  - "Weekly rank"
+  - Leaderboard widgets/cards
+  - Any badges tied to points
+
+----------------------------------------
+
+STEP 2: USER DASHBOARD CLEANUP
+
+- Remove any points/score cards or sections
+- Keep:
+  - Photos submitted
+  - Reports list
+  - Upload + AI result
+
+- Adjust layout so spacing looks clean after removal
+
+----------------------------------------
+
+STEP 3: MUNICIPAL DASHBOARD ACTIONS
+
+- Replace current actions:
+  - REMOVE: "Mark as cleaned (+1pt)"
+  - REMOVE: any points/score updates
+
+- KEEP ONLY ONE ACTION:
+  - Button: "Mark as Reviewed"
+
+- Behavior:
+  - On click → set report status = "Reviewed"
+  - Optionally store reviewedAt timestamp
+
+----------------------------------------
+
+STEP 4: DATA MODEL UPDATE
+
+- Remove or ignore fields:
+  - points, score, rank
+
+- Ensure report object has:
+  - id
+  - image/url
+  - location
+  - cleanliness
+  - priority
+  - status (e.g., Pending / Reviewed)
+  - createdAt
+  - reviewedAt (optional)
+
+----------------------------------------
+
+STEP 5: FILTERS & STATUS
+
+- Update filters to use status only:
+  - Pending
+  - Reviewed
+
+- Update badges:
+  - Pending → neutral/yellow
+  - Reviewed → green
+
+----------------------------------------
+
+STEP 6: CLEAN UP UNUSED CODE
+
+- Remove:
+  - helper functions related to points
+  - unused imports/components
+  - styles/classes for leaderboard/points
+
+----------------------------------------
+
+STEP 7: FINAL UI POLISH
+
+- Ensure no empty spaces where cards were removed
+- Keep dashboard balanced (grid adjusts correctly)
+- No references to points anywhere in UI text
+
+----------------------------------------
+
+STEP 8: TEST
+
+- Run app and verify:
+  - Upload → report created
+  - Municipal dashboard shows report
+  - "Mark as Reviewed" works and updates status
+  - No console errors
+  - No references to points remain
+
+----------------------------------------
+
+GOAL:
+
+A clean, simplified system focused on reporting and review, with no gamification or point-based logic.

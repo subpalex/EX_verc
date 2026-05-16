@@ -1,0 +1,89 @@
+Fix the "Load Failed" error occurring on the login page of my UrbanEye AI web application.
+
+IMPORTANT:
+- Do NOT rebuild the project
+- Debug and fix the issue within the existing codebase
+- Ensure the app runs smoothly after fixes
+
+----------------------------------------
+
+STEP 1: DEBUG THE LOGIN ISSUE
+
+- Check why "Load Failed" is occurring on login page
+- Inspect:
+  - API calls (frontend → backend)
+  - Incorrect endpoints (wrong URL/port)
+  - CORS issues
+  - Missing or incorrect request headers
+  - Network failures or unhandled errors
+
+----------------------------------------
+
+STEP 2: BACKEND VALIDATION
+
+- Ensure login API route exists (e.g., POST /login)
+- Check:
+  - Server is running correctly
+  - Route paths match frontend requests
+  - Proper JSON response is returned
+  - Error handling is implemented
+
+----------------------------------------
+
+STEP 3: FRONTEND FIXES
+
+- Fix fetch/axios call:
+  - Correct API URL
+  - Add proper headers (Content-Type: application/json)
+  - Handle async/await properly
+  - Add try-catch for errors
+
+- Replace vague "Load Failed" with:
+  - Proper error messages:
+    - "Server not reachable"
+    - "Invalid credentials"
+    - "Network error"
+
+----------------------------------------
+
+STEP 4: ENVIRONMENT CHECK
+
+- Ensure frontend is calling correct backend URL
+- Fix any localhost/port mismatch issues
+- Use relative paths if needed
+
+----------------------------------------
+
+STEP 5: RUN & TEST
+
+- Run the entire project after fixing
+- Test:
+  - Login flow
+  - Navigation
+  - API responses
+
+- If any errors occur:
+  - Automatically debug and fix them
+
+----------------------------------------
+
+STEP 6: STABILITY IMPROVEMENTS
+
+- Add:
+  - Loading state on login button
+  - Error handling UI
+  - Fallback if server is down
+
+----------------------------------------
+
+STEP 7: FINAL OUTPUT
+
+- Working login page without "Load Failed"
+- Clean and stable frontend-backend communication
+- Proper error handling
+
+----------------------------------------
+
+GOAL:
+
+Ensure the login system works reliably and the application runs without runtime errors.

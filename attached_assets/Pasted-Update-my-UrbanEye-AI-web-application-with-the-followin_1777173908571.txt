@@ -1,0 +1,93 @@
+Update my UrbanEye AI web application with the following changes:
+
+IMPORTANT:
+- Do NOT rebuild the app
+- Do NOT remove existing working features
+- Only revert demo changes and update UI theme
+
+----------------------------------------
+
+STEP 1: DISABLE DEMO MODE
+
+- Remove any "Demo Mode" flags or conditions
+- Delete or disable demo-related files/components (e.g., demoMode, DemoDashboard)
+- Remove any automatic redirects that bypass authentication
+
+----------------------------------------
+
+STEP 2: RESTORE AUTHENTICATION FLOW
+
+- Bring back the original Login and Register pages
+- Ensure routes work correctly:
+  - /login
+  - /register
+  - /dashboard (protected)
+
+- Add proper route protection:
+  - If user is NOT logged in → redirect to /login
+  - If logged in → allow access to dashboard
+
+----------------------------------------
+
+STEP 3: FIX AUTH ERRORS (IMPORTANT)
+
+- Handle backend/auth unavailability gracefully:
+  - If auth server fails, show message:
+    "Authentication service temporarily unavailable. Please try again."
+- Do NOT crash or show generic "Load Failed"
+
+----------------------------------------
+
+STEP 4: UPDATE UI TO LIGHT THEME
+
+Convert the entire UI from dark to light theme:
+
+- Background: #F8FAFC (light gray/white)
+- Cards: white with soft shadow
+- Primary color: #2563EB (blue)
+- Secondary accent: #7C3AED (purple)
+- Text: dark gray/black
+
+----------------------------------------
+
+STEP 5: COMPONENT STYLING
+
+- Buttons:
+  - Solid blue primary
+  - Soft hover effects
+
+- Cards:
+  - Rounded corners
+  - Light shadow (clean look)
+
+- Inputs:
+  - White background
+  - Subtle border
+  - Focus highlight (blue)
+
+----------------------------------------
+
+STEP 6: CONSISTENCY
+
+- Apply light theme across:
+  - Login page
+  - Register page
+  - Dashboard
+  - Upload section
+
+----------------------------------------
+
+STEP 7: FINAL CHECK
+
+- Run the app
+- Ensure:
+  - Login/Register pages load properly
+  - No demo mode elements remain
+  - UI is fully light-themed
+  - No runtime errors
+
+----------------------------------------
+
+GOAL:
+
+Restore a proper login-based system and convert the UI to a clean, modern light theme suitable for presentation.

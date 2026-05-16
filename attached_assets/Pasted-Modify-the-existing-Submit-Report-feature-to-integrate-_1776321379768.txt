@@ -1,0 +1,62 @@
+Modify the existing "Submit Report" feature to integrate AI Waste Detection directly into the upload flow, without creating any new pages or tabs and without breaking existing functionality, authentication, or database structure.
+
+Strict Rules:
+
+* Do NOT create a separate AI Detect page or route.
+* Do NOT modify authentication or existing backend logic.
+* Extend the current "Submit Report" workflow only.
+* Keep everything backward compatible.
+
+Feature Integration:
+
+1. When a vendor uploads an image in "Submit Report":
+
+   * Automatically trigger AI analysis (no extra button needed).
+
+2. Add an AI analyzing state:
+
+   * Show loading text: "Analyzing image using AI..."
+   * Display spinner or animation
+   * Duration: 2–3 seconds (simulated)
+
+3. After analysis completes, automatically generate:
+
+   * Waste Level: Low / Medium / High
+   * Waste Type: Plastic / Organic / Mixed
+   * Confidence Score: 80%–95%
+
+4. Display results immediately below the uploaded image:
+
+   * Color-coded Waste Level (Green/Yellow/Red)
+   * Waste Type
+   * Confidence %
+   * AI Explanation:
+
+     * High: "Dense waste accumulation detected. Immediate cleaning required."
+     * Medium: "Moderate waste detected. Cleaning recommended."
+     * Low: "Area appears relatively clean."
+
+5. Auto-fill report fields:
+
+   * Populate report description using AI result:
+     Example:
+     "High waste detected (Plastic, 92% confidence). Immediate action required."
+
+6. Submission flow:
+
+   * When user clicks "Submit Report":
+
+     * Include AI-generated data along with the report
+     * Ensure existing submission logic remains unchanged
+
+7. UI Flow:
+   Upload Image → Preview → "Analyzing..." → AI Result → Submit Report
+
+8. Technical Constraints:
+
+   * Use local state only for AI simulation
+   * Do NOT call external APIs
+   * Do NOT break existing form validation or submission
+
+Goal:
+Transform the existing "Submit Report" into an AI-assisted reporting system where analysis happens automatically and enhances the report data sent to the municipality.
