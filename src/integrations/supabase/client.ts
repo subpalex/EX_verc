@@ -2,8 +2,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Fall back to placeholder values when env vars are not set so the app
+// doesn't crash on import (all API calls will simply fail gracefully).
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "placeholder-anon-key";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
